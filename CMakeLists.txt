@@ -8,6 +8,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
+find_package(moveit_visual_tools REQUIRED)
 find_package(rclcpp REQUIRED)
 
 add_executable(hello_moveit_ur5e src/hello_moveit_ur5e.cpp)
@@ -18,6 +19,7 @@ target_compile_features(hello_moveit_ur5e PUBLIC c_std_99 cxx_std_17)  # Require
 ament_target_dependencies(
   hello_moveit_ur5e
   "moveit_ros_planning_interface"
+  "moveit_visual_tools"
   "rclcpp"
 )
 
