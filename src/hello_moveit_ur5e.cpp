@@ -2,6 +2,7 @@
 #include <thread>
 
 #include <rclcpp/rclcpp.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
 #include <moveit/planning_scene_interface/planning_scene_interface.h>
@@ -62,40 +63,15 @@ int main(int argc, char * argv[])
   const moveit::core::JointModelGroup* joint_model_group = 
     move_group_interface.getCurrentState()->getJointModelGroup(PLANNING_GROUP);
 
-  // // [WIP] Getting basic information
-  // RCLCPP_INFO(logger, "Available Planning Groups:");
-  // std::copy(
-  //   move_group_interface.getJointModelGroupNames().begin(),
-  //   move_group_interface.getJointModelGroupNames().end(),
-  //   std::ostream_iterator<std::string>(std::cout, ", ")
-  // );
-
-  // Initial to ZERO position
-  moveit::core::RobotStatePtr current_state = move_group_interface.getCurrentState();
-  std::vector<double> joint_group_positions;
-  current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
-  joint_group_positions[0] = 0.0;
-  joint_group_positions[1] = -1.57;
-  joint_group_positions[2] = 0.0;
-  joint_group_positions[3] = -1.57;
-  joint_group_positions[4] = 0.0;
-  joint_group_positions[5] = 0.0;
-  move_group_interface.setJointValueTarget(joint_group_positions);
-  
-  // Create a plan to that target pose
-  auto const [success, plan] = [&move_group_interface]{
-    moveit::planning_interface::MoveGroupInterface::Plan msg;
-    auto const ok = static_cast<bool>(move_group_interface.plan(msg));
-    return std::make_pair(ok, msg);
-  }();
-
-  // Execute the plan
-  if(success) {
-    RCLCPP_INFO(logger, "Moving to zero position.");
-    move_group_interface.execute(plan);
-  } else {
-    RCLCPP_ERROR(logger, "Planning failed!");
-  }
+  // [WIP] Getting basic information
+  RCLCPP_INFO(logger, "Available Planning Groups:");
+  std::stringstream ss;
+  std::copy(
+    move_group_interface.getJointModelGroupNames().begin(),
+    move_group_interface.getJointModelGroupNames().end(),
+    std::ostream_iterator<std::string>(ss, ", ")
+  );
+  RCLCPP_INFO_STREAM(logger, ss.str());
 
   // Create collision object for the robot to avoid
   auto const collision_object = [frame_id =
@@ -130,11 +106,43 @@ int main(int argc, char * argv[])
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
   planning_scene_interface.applyCollisionObject(collision_object);
 
+  /* Starting position */
+  // Initial to ZERO position
+  moveit::core::RobotStatePtr current_state = move_group_interface.getCurrentState();
+  std::vector<double> joint_group_positions;
+  current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
+  joint_group_positions[0] = 0.0;
+  joint_group_positions[1] = -1.57;
+  joint_group_positions[2] = 0.0;
+  joint_group_positions[3] = -1.57;
+  joint_group_positions[4] = 0.0;
+  joint_group_positions[5] = 0.0;
+  move_group_interface.setJointValueTarget(joint_group_positions);
+  
+  // Create a plan to that target pose
+  auto const [success, plan] = [&move_group_interface]{
+    moveit::planning_interface::MoveGroupInterface::Plan msg;
+    auto const ok = static_cast<bool>(move_group_interface.plan(msg));
+    return std::make_pair(ok, msg);
+  }();
+
+  // Execute the plan
+  if (success) {
+    draw_title("Executing");
+    RCLCPP_INFO(logger, "Executing to initial position.");
+    move_group_interface.execute(plan);
+  } else {
+    RCLCPP_ERROR(logger, "Planning failed!");
+  }
+
+  /* Target goal poses */
   // Set a list of target Poses
+  tf2::Quaternion tcp_orientation;
+  tcp_orientation.setRPY(M_PI, 0.0, 0.0);
   std::vector<geometry_msgs::msg::Pose> target_poses;
-  auto const target_pose1 = []{
+  auto const target_pose1 = [&tcp_orientation]{
     geometry_msgs::msg::Pose msg;
-    msg.orientation.w = 1.0;
+    msg.orientation = tf2::toMsg(tcp_orientation);
     msg.position.x = 0.5;
     msg.position.y = 0.5;
     msg.position.z = 0.5;
@@ -142,9 +150,9 @@ int main(int argc, char * argv[])
   }();
   target_poses.push_back(target_pose1);
 
-  auto const target_pose2 = []{
+  auto const target_pose2 = [&tcp_orientation]{
     geometry_msgs::msg::Pose msg;
-    msg.orientation.w = 1.0;
+    msg.orientation = tf2::toMsg(tcp_orientation);
     msg.position.x = -0.5;
     msg.position.y = 0.5;
     msg.position.z = 0.5;
@@ -152,9 +160,9 @@ int main(int argc, char * argv[])
   }();
   target_poses.push_back(target_pose2);
 
-  auto const target_pose3 = []{
+  auto const target_pose3 = [&tcp_orientation]{
     geometry_msgs::msg::Pose msg;
-    msg.orientation.w = 1.0;
+    msg.orientation = tf2::toMsg(tcp_orientation);
     msg.position.x = -0.5;
     msg.position.y = -0.5;
     msg.position.z = 0.5;
@@ -162,9 +170,9 @@ int main(int argc, char * argv[])
   }();
   target_poses.push_back(target_pose3);
 
-  auto const target_pose4 = []{
+  auto const target_pose4 = [&tcp_orientation]{
     geometry_msgs::msg::Pose msg;
-    msg.orientation.w = 1.0;
+    msg.orientation = tf2::toMsg(tcp_orientation);
     msg.position.x = 0.5;
     msg.position.y = -0.5;
     msg.position.z = 0.5;
@@ -194,14 +202,18 @@ int main(int argc, char * argv[])
     }();
 
     // Execute the plan
-    if(success) {
+    if (success) {
       draw_trajectory_tool_path(plan.trajectory_);
       moveit_visual_tools.trigger();
       prompt("Press 'Next' in the RvizVisualToolsGui window to execute");
       draw_title("Executing");
       moveit_visual_tools.trigger();
-      RCLCPP_INFO(logger, "Moving to target pose %d.", pose_count);
+      RCLCPP_INFO(logger, "Executing to target pose %d.", pose_count);
       move_group_interface.execute(plan);
+      if (pose_count == 4) {
+        draw_title("Finished");
+        moveit_visual_tools.trigger();
+      }
     } else {
       draw_title("Planning Failed!");
       moveit_visual_tools.trigger();
