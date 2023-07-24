@@ -13,20 +13,31 @@ find_package(rclcpp REQUIRED)
 
 add_executable(hello_moveit_ur5e src/hello_moveit_ur5e.cpp)
 target_include_directories(hello_moveit_ur5e PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
+$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+$<INSTALL_INTERFACE:include>)
 target_compile_features(hello_moveit_ur5e PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 ament_target_dependencies(
   hello_moveit_ur5e
   "moveit_ros_planning_interface"
   "moveit_visual_tools"
   "rclcpp"
-)
+  )
 
-install(TARGETS hello_moveit_ur5e
+add_executable(cartesian_ur5e src/cartesian_ur5e.cpp)
+ament_target_dependencies(
+  cartesian_ur5e
+  "moveit_ros_planning_interface"
+  "moveit_visual_tools"
+  "rclcpp"
+  )
+  
+install(TARGETS
+  hello_moveit_ur5e
+  cartesian_ur5e
   DESTINATION lib/${PROJECT_NAME})
 
-install(DIRECTORY launch
+install(DIRECTORY
+  launch
   DESTINATION share/${PROJECT_NAME}
 )
 
