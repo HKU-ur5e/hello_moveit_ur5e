@@ -46,6 +46,25 @@ int main(int argc, char ** argv)
   const moveit::core::JointModelGroup* joint_model_group = 
     move_group_interface.getCurrentState()->getJointModelGroup(PLANNING_GROUP);
 
+  /* Visualization */
+  namespace rvt = rviz_visual_tools;
+  moveit_visual_tools::MoveItVisualTools visual_tools(move_group_node, "base_link", "move_group_tutorial",
+                                                      move_group_interface.getRobotModel());
+
+  visual_tools.deleteAllMarkers();
+
+  /* Remote control is an introspection tool that allows users to step through a high level script */
+  /* via buttons and keyboard shortcuts in RViz */
+  visual_tools.loadRemoteControl();
+
+  // RViz provides many types of markers, in this demo we will use text, cylinders, and spheres
+  Eigen::Isometry3d text_pose = Eigen::Isometry3d::Identity();
+  text_pose.translation().z() = 1.0;
+  visual_tools.publishText(text_pose, "MoveGroupInterface_Demo", rvt::WHITE, rvt::XLARGE);
+
+  // Batch publishing is used to reduce the number of messages being sent to RViz for large visualizations
+  visual_tools.trigger();
+
   /* Create collision object for the robot to avoid */
   auto const collision_object = [frame_id =
                                   move_group_interface.getPlanningFrame()] {
@@ -79,8 +98,14 @@ int main(int argc, char ** argv)
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
   planning_scene_interface.applyCollisionObject(collision_object);
 
+  /* Getting basic information */
+  RCLCPP_INFO(LOGGER, "Planning frame: %s", move_group_interface.getPlanningFrame().c_str());
+  RCLCPP_INFO(LOGGER, "End effector link: %s", move_group_interface.getEndEffectorLink().c_str());
+
   /* Starting position */
   // Initial position
+  visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to start the planning");
+
   moveit::core::RobotStatePtr current_state = move_group_interface.getCurrentState(10);
   std::vector<double> joint_group_positions;
   current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
@@ -97,6 +122,13 @@ int main(int argc, char ** argv)
   // Create a plan to that target pose
   moveit::planning_interface::MoveGroupInterface::Plan plan;
   bool success = (move_group_interface.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS);
+  
+  RCLCPP_INFO(LOGGER, "Visualizing plan 1 (joint space goal) %s", success ? "" : "FAILED");
+  visual_tools.deleteAllMarkers();
+  visual_tools.publishText(text_pose, "Joint_Space_Goal", rvt::WHITE, rvt::XLARGE);
+  visual_tools.publishTrajectoryLine(plan.trajectory_, joint_model_group);
+  visual_tools.trigger();
+  visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue");
 
   // Execute the plan
   if (success) {
@@ -120,6 +152,14 @@ int main(int argc, char ** argv)
 
   success = (move_group_interface.plan(plan) == moveit::core::MoveItErrorCode::SUCCESS);
 
+  RCLCPP_INFO(LOGGER, "Visualizing plan 2 as trajectory line");
+  visual_tools.deleteAllMarkers();
+  visual_tools.publishAxisLabeled(target_pose1, "pose1");
+  visual_tools.publishText(text_pose, "Pose_Goal", rvt::WHITE, rvt::XLARGE);
+  visual_tools.publishTrajectoryLine(plan.trajectory_, joint_model_group);
+  visual_tools.trigger();
+  visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
+
   // Execute the plan
   if (success) {
       RCLCPP_INFO(LOGGER, "Executing to target pose 1.");
@@ -142,6 +182,15 @@ int main(int argc, char ** argv)
   const double eef_step = 0.01;
   double fraction = move_group_interface.computeCartesianPath(approach_waypoints, eef_step, jump_threshold, approach_trajectory);
 
+  RCLCPP_INFO(LOGGER, "Visualizing plan 3 (Cartesian path - Approach) (%.2f%% achieved)", fraction * 100.0);
+  visual_tools.deleteAllMarkers();
+  visual_tools.publishText(text_pose, "Cartesian_Path", rvt::WHITE, rvt::XLARGE);
+  visual_tools.publishPath(approach_waypoints, rvt::LIME_GREEN, rvt::SMALL);
+  for (std::size_t i = 0; i < approach_waypoints.size(); ++i)
+    visual_tools.publishAxisLabeled(approach_waypoints[i], "pt" + std::to_string(i), rvt::SMALL);
+  visual_tools.trigger();
+  visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue");
+
   RCLCPP_INFO(LOGGER, "Approaching to object...");
   move_group_interface.execute(approach_trajectory);
 
@@ -157,11 +206,23 @@ int main(int argc, char ** argv)
   moveit_msgs::msg::RobotTrajectory retreat_trajectory;
   fraction = move_group_interface.computeCartesianPath(retreat_waypoints, eef_step, jump_threshold, retreat_trajectory);
 
-  RCLCPP_INFO(LOGGER, "Approaching to object...");
+  RCLCPP_INFO(LOGGER, "Visualizing plan 4 (Cartesian path - Retreat) (%.2f%% achieved)", fraction * 100.0);
+  visual_tools.deleteAllMarkers();
+  visual_tools.publishText(text_pose, "Cartesian_Path", rvt::WHITE, rvt::XLARGE);
+  visual_tools.publishPath(retreat_waypoints, rvt::LIME_GREEN, rvt::SMALL);
+  for (std::size_t i = 0; i < retreat_waypoints.size(); ++i)
+    visual_tools.publishAxisLabeled(retreat_waypoints[i], "pt" + std::to_string(i), rvt::SMALL);
+  visual_tools.trigger();
+  visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue");
+
+  RCLCPP_INFO(LOGGER, "Retreating from object...");
   move_group_interface.execute(retreat_trajectory);
 
 
   // Shutdown ROS
+  visual_tools.deleteAllMarkers();
+  visual_tools.trigger();
+
   rclcpp::shutdown();
   return 0;
 }

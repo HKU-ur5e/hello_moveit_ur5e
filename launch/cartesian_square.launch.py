@@ -110,7 +110,7 @@ def launch_setup(context, *args, **kwargs):
         [FindPackageShare(moveit_config_package), "config", "kinematics.yaml"]
     )
 
-    # Tutorial node for custom goal pose
+    # Demo custom node
     tutorial_node = Node(
         package="hello_moveit_ur5e",
         executable="cartesian_ur5e",
